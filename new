@@ -1,1 +1,62 @@
 66334C3A59544A29699A878FDC8A908E78EE7D2016EAE9729FF76F1F95AC2F3D0C7D3C941827BC838DFBFC69246AA394EB527DC9973C45F603D5B4A26E5AB88CB8D6485086349B378C7C474EC1CA6B07C5FFF7DD4ACECB30765C434B50C7BD123473C49185FCDDCDE3ECB14FAB46F9E3BAFE5F9A129D01958826F3718EBCA6655BA03695109A2042FB4141FEB3A948D0145E8E5986C1BC334EFC819E058C851DB770747FB370193DFF99E165CE5D73E741F9972BB771C66A0C7DC1AC198CE3513553859C45E4F39465CFD098DEB8EEAF5F19D2A23C45C6B4AE48B63BF94A83BEB682B8D3BF1BE2167FEF428FB6483BE428EDBC73987BBD10D29E18987E909C077B2261637469766174696F6E4964223A31303332303134322C226175746F52656E6577223A66616C73652C226D616368696E65536964223A22532D312D352D32312D333237313437333238312D313637333237393635302D33383038363532313430222C226C6963656E736573223A5B7B226964223A31303539323931302C2274797065223A22547269616C222C2241637469766174696F6E4944223A31303332303134322C2261637469766174696F6E223A22323032322D30342D31315431363A30383A30312E3035343235342D30343A3030222C2265787069726174696F6E223A22323032322D30352D31315431363A30383A30312E3035343235342D30343A3030222C2270726F647563744964223A323632307D5D7D
+
+function Check-TNSnames {
+<#
+.Synopsis
+   Short description
+.DESCRIPTION
+   Long description
+.EXAMPLE
+   Example of how to use this cmdlet
+#>
+    [CmdletBinding()]
+    Param(
+        #[Parameter(Mandatory=$false)][ValidateSet('Stop', 'Inquire', 'Continue', 'SilentlyContinue')]$DebugPref='Continue'
+    )
+
+        $file = '.\test.txt'
+        $output1 = '.\test2.txt' 
+        $FunctionName = ((Get-PSCallStack)[0].Command)
+
+        #Get file contents
+        $Content = Get-Content -raw $file 
+
+        #Remove whitespace
+        $WSRemoved = $Content -replace "\s"
+
+        #Remove CRLF
+        $CRLFRemoved = $WSRemoved  -replace "`r`n","`n"
+
+        #Matches "))" and NOT "))(", then remove trailing new line
+        #Attempt to determine the end of each entry and inserting a new line
+        $LineConverted = $CRLFRemoved -replace "(\){2})(?!\))(?!\()","))`r`n" -replace "`r`n$"
+
+        #Split into array
+        $ContentArray = $LineConverted -split "`r`n"
+
+        #Check format of each line
+        foreach($Entry in $ContentArray) {
+            #Grab server name
+            $ServerName = $Entry -split "="
+            $Message = "Checking: {0}`r`n{1}" -f $ServerName[0], $Entry
+            Write-Log -Message $Message -Severity 1 -Source $FunctionName
+            
+            #Confirm the line starts with a letter, number, or #
+            If (!($Entry -match "^[a-z].*|^[A-Z].*|^[\d].*|^#.*")) {
+                Write-Log -Message 'Entry does not start with a valid character' -Severity 3 -Source $FunctionName
+            }
+
+            #Count Parenthesis
+            $LeftParenCount = ($Entry.ToCharArray() | Where-Object {$_ -eq '('} | Measure-Object).Count
+            $RightParenCount = ($Entry.ToCharArray() | Where-Object {$_ -eq ')'} | Measure-Object).Count
+            If ($LeftParenCount -ne $RightParenCount) {
+                $Message = 'Orphaned parenthesis detected Left:{0} Right:{1}' -f $LeftParenCount, $RightParenCount
+                Write-Log -Message $Message -Severity 3 -Source $FunctionName
+                $Message = 'Extracted parenthesis: {0}' -f ($Entry -replace '[\w-=]')
+                Write-Log -Message $Message -Severity 2 -Source $FunctionName
+            }
+
+            
+        }
+
+}
